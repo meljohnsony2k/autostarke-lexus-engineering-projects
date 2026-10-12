@@ -1,0 +1,173 @@
+// Project X (PX) merged test sketch
+// Luxury lounge conversion kit prototype, Autostarke R&D, 2022
+//
+// Combines the individually tested PX functions into one program:
+//  - reading, flood and ambient lights through relays
+//  - two DC motors through an L298 H-bridge (privacy screen / blinds test)
+//  - NeoPixel ambient strip: rainbow fade, or a custom colour sent over
+//    Bluetooth serial as "#R,G,B#"
+//
+// Target: Arduino Mega 2560 (prototyped on Uno in Tinkercad)
+// Transcribed from the thesis appendix.
+
+#include <Adafruit_NeoPixel.h>
+
+#define PIN 2        // the pin your strip is connected to
+#define NUMPIXELS 8  // how many LEDs are on that strip
+
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+
+int RLIGHT = 7;  // relay trigger pins
+int SLIGHT = 6;
+int ALIGHT = 5;
+
+// readsplit constants
+int R;
+int G;
+int B;
+
+// Motor A connections
+// int enA = 9;  // shorted
+int in1 = 8;
+int in2 = 9;
+// Motor B connections
+// int enB = 3;
+int in3 = 10;
+int in4 = 11;
+
+int redColor = 0;
+int greenColor = 0;
+int blueColor = 0;
+
+void setup() {
+  Serial.begin(9600);
+
+  // Initialize the NeoPixel library
+  pixels.begin();
+  pixels.show();
+
+  pinMode(RLIGHT, OUTPUT);
+  pinMode(SLIGHT, OUTPUT);
+  pinMode(ALIGHT, OUTPUT);
+
+  // Set all the motor control pins to outputs
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(in3, OUTPUT);
+  pinMode(in4, OUTPUT);
+
+  // Turn off motors - initial state
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, LOW);
+
+  Serial.println("INITIALIZED");
+}
+
+void loop() {
+  Serial.println("Lights ON");
+  digitalWrite(RLIGHT, HIGH);  // turn the relays on to turn on the lights
+  digitalWrite(SLIGHT, HIGH);
+  digitalWrite(ALIGHT, HIGH);
+
+  directionControl();
+  delay(1000);
+  // sc(255, 0, 0);
+  rainbow(10);
+}
+
+void rainbow(int wait) {
+  for (long firstPixelHue = 0; firstPixelHue < 5 * 65536; firstPixelHue += 256) {
+    for (int i = 0; i < pixels.numPixels(); i++) {
+      int pixelHue = firstPixelHue + (i * 65536L / pixels.numPixels());
+      pixels.setPixelColor(i, pixels.gamma32(pixels.ColorHSV(pixelHue)));
+    }
+    pixels.show();
+    delay(wait);
+  }
+}
+
+// Runs both motors one way, stops, then runs them the other way
+void directionControl() {
+  // Turn on motor A & B
+  digitalWrite(in1, HIGH);  // CCW
+  digitalWrite(in2, LOW);
+  digitalWrite(in3, HIGH);
+  digitalWrite(in4, LOW);
+  delay(2000);
+
+  // Turn off motors
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, LOW);
+  delay(2000);
+
+  // Now change motor directions
+  digitalWrite(in1, LOW);  // CW
+  digitalWrite(in2, HIGH);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, HIGH);
+  delay(2000);
+
+  // Turn off motors
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, LOW);
+}
+
+// Parses "#R,G,B#" from the Bluetooth serial input into R, G, B
+int readsplit() {
+  if (Serial.available()) {
+    String BT_input = Serial.readString();  // read input string from bluetooth
+    if (BT_input.startsWith("#")) {
+      BT_input.remove(0, 1);
+      Serial.println(BT_input);
+      int ind1 = 0;
+      int ind2 = 0;
+      int ind3 = 0;
+      String red;
+      String green;
+      String blue;
+      ind1 = BT_input.indexOf(',');           // location of first ,
+      red = BT_input.substring(0, ind1);      // first value
+      ind2 = BT_input.indexOf(',', ind1 + 1); // location of second ,
+      green = BT_input.substring(ind1 + 1, ind2);
+      ind3 = BT_input.indexOf('#', ind2 + 1);
+      blue = BT_input.substring(ind2 + 1, ind3);
+      R = red.toInt();
+      G = green.toInt();
+      B = blue.toInt();
+      Serial.println("R: " + red);
+      Serial.println("G: " + green);
+      Serial.println("B: " + blue);
+      delay(1000);
+      return R, G, B;  // note: only B is returned; R, G, B are also stored globally
+    } else {
+      Serial.println("NOT RGB Code");
+    }
+  }
+}
+
+// Set the whole strip to one colour, then turn it off
+void sc(int R2, int G2, int B2) {
+  uint32_t color = pixels.Color(R2, G2, B2);
+  for (int i = 0; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(i, color);
+    pixels.show();
+  }
+  Serial.println("LED ON");
+  Serial.print("R:"); Serial.println(R2);
+  Serial.print("G:"); Serial.println(G2);
+  Serial.print("B:"); Serial.println(B2);
+  delay(1000);
+
+  for (int i = 0; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(i, 0, 0, 0);
+    pixels.show();
+  }
+  Serial.println("LED OFF");
+  delay(1000);
+}
