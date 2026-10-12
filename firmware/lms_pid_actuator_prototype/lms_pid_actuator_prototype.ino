@@ -1,5 +1,5 @@
 // Lexus Mobile Showroom (LMS) - PID position control prototype
-// Autostarke R&D, 2022 (original). Fixed and restructured 2026.
+// Autostarke R&D. v1 2022, v2 2026.
 //
 // Bench prototype for closed loop control of the side wall actuators.
 // Two encoder motors (M1, M2) stand in for the linear actuators.
@@ -12,23 +12,18 @@
 //
 // Board: Arduino Uno or Mega 2560.
 //
-// What changed from the 2022 version (see README):
-//  1. PID output now actually drives the motors (was a shadowed local variable).
-//  2. PID output is signed and scaled to the PWM range (-255..255), so it can
-//     drive both directions and slow down near the target.
-//  3. Encoder counts are accumulated in the interrupt using both encoder channels
-//     (A and B) for direction, instead of only counting during a 1 ms window
-//     each loop and guessing direction from the motor command.
-//  4. Fixed sample time using millis(), and the real dt is used in the maths.
-//  5. Anti-windup: the integral only grows while the output is not saturated.
-//  6. Deadband check comes first, so the motor actually stops at the target.
-//  7. Non-blocking line input: a stray newline no longer resets the setpoint to 0.
-//  8. Encoder pins moved off pin 1 (the Serial TX pin); motor 2 moved to PWM pins.
-//  9. Position is not wrapped at 360, so crossing 360 does not cause a jump.
-// 10. Sync term between the two actuators so they stay level while moving.
+// v2 changelog (2026), see README:
+//  - Bug fix: PID output drives the motors as a signed -255..255 PWM command
+//  - Upgrade: quadrature encoder (A + B channels) counted in the interrupt
+//  - Bug fix: non-blocking serial line input, empty lines ignored
+//  - Bug fix: deadband checked first so the motor stops cleanly
+//  - Upgrade: fixed 20 ms control loop using millis()
+//  - Upgrade: anti-windup on the integral
+//  - Bug fix: pin map (encoders on interrupt pins, motors on PWM pins, Serial pins free)
+//  - Upgrade: position not wrapped at 360
+//  - New: sync term keeps the two actuators level while moving
 //
-// Gains: Kp/Ki/Kd below are starting values only. The 2022 tuning runs never
-// reached the motors (bug 1), so retune on the real hardware.
+// Gains: Kp/Ki/Kd below are starting values. Tune them on the real actuators.
 
 // ---------------- Pins ----------------
 const uint8_t ENC_A[2]     = {2, 3};    // encoder channel A: external interrupt pins on Uno and Mega

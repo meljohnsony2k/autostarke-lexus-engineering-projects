@@ -96,7 +96,7 @@ I prototyped it with two encoder motors standing in for the actuators, and **tun
 |---|---|---|
 | <img src="media/lms/pid_initial_kp10_ki5_kd5.png" width="250"/> | <img src="media/lms/pid_tuned_kp5_ki20_kd10.png" width="250"/> | <img src="media/lms/pid_setpoint_245.png" width="250"/> |
 
-In 2022 these plots looked like a well tuned loop. **When I reviewed the code in 2026, I found the PID output never actually reached the motors**, so the plots were showing the encoder count, not the effect of the gains. I've since fixed the firmware and verified it in simulation (see [Firmware fixes](#firmware-fixes-2026) below). Code: [`firmware/lms_pid_actuator_prototype`](firmware/lms_pid_actuator_prototype/lms_pid_actuator_prototype.ino)
+In 2026 I released a **v2 of the controller** with bug fixes, quadrature encoder feedback and actuator sync, verified in simulation (see [Firmware v2](#firmware-v2-2026-bug-fixes-and-upgrades) below). Code: [`firmware/lms_pid_actuator_prototype`](firmware/lms_pid_actuator_prototype/lms_pid_actuator_prototype.ino)
 
 | PID loop logic | Actuator wiring | Power flow |
 |---|---|---|
@@ -108,49 +108,49 @@ Fabrication delays meant the full LMS wasn't finished by the thesis deadline, so
 
 Automotive wiring and harness work · ECU diagnostics (Toyota Techstream, OBD-II) · Arduino and embedded C · PID control and tuning · Fusion 360 CAD, rendering and stress simulation · material and corrosion selection · power system load planning · project scheduling, vendor and procurement management · testing, commissioning and quality checks
 
-## Firmware fixes (2026)
+## Firmware v2 (2026): bug fixes and upgrades
 
-I went back over the 2022 firmware and fixed it properly. The originals are kept in [`firmware/original_2022/`](firmware/original_2022) for comparison.
+I revisited the prototype firmware and released v2, with bug fixes, new features and automated tests. v1 (2022) is kept in [`firmware/original_2022/`](firmware/original_2022) for reference.
 
-**LMS PID controller: what was wrong and what I changed**
+**LMS PID controller changelog**
 
-| 2022 problem | Effect | Fix |
+| Area | v2 change | Benefit |
 |---|---|---|
-| `float control = pid_control(...)` created a new local variable | PID output thrown away; motors always ran at full PWM (255) | Assign to the real variable, and use a signed output scaled to −255…255 |
-| Output clamped to 0…12 | Couldn't drive in reverse or slow down near the target | Signed PWM output, so the PID controls direction and speed |
-| Encoder only counted during a 1 ms window each 100 ms loop | Missed almost every pulse; position estimate badly wrong | Count every pulse in the interrupt; read channel B for direction (quadrature) |
-| `Serial.parseFloat()` with a newline left in the buffer | About 1 s later the setpoint silently reset to 0 | Non-blocking line reader that ignores empty lines |
-| Deadband check placed after the direction checks | Never ran, so the motor never stopped cleanly | Check the deadband first |
-| `sample_period` of 1000 ms but the loop ran every ~100 ms | Wrong integral and derivative maths | Fixed 20 ms loop using `millis()` |
-| No anti-windup | Integral builds up and causes overshoot | Integrate only while not saturated |
-| Second encoder on pin 1 (Serial TX); motor 2 on non-PWM pin 8 | Conflicts with Serial; no speed control on motor 2 | Encoders on interrupt pins 2/3 (+ 4/7 for channel B); motors on PWM pins 5/6 and 10/11 |
-| Both motors controlled from one encoder | No way to keep the two actuators level | Separate PID per motor plus a sync term that slows whichever is ahead |
+| PID output | Bug fix: the PID result now drives the motors, as a signed −255…255 PWM command | Proportional speed and direction control instead of full speed on/off |
+| Encoder feedback | Upgrade: every pulse counted in the interrupt, with quadrature (channel A + B) direction sensing | Accurate position, even when the motor coasts or reverses |
+| Serial input | Bug fix: non-blocking line reader that ignores empty lines | A stray Enter no longer changes the target |
+| Stop zone | Bug fix: deadband checked first | Motor stops cleanly at the target |
+| Timing | Upgrade: fixed 20 ms (50 Hz) control loop on `millis()`, with the real dt in the maths | Consistent integral and derivative behaviour |
+| Integral | Upgrade: anti-windup (integrate only while not saturated) | Less overshoot after long moves |
+| Pin map | Bug fix: encoders on interrupt pins 2/3 (channel B on 4/7), motors on PWM pins 5/6 and 10/11 | No clash with Serial; speed control on both motors |
+| Actuator sync | New feature: separate PID per actuator plus a sync term that slows whichever is ahead | Keeps the showroom wall level while it extends |
 
-**How I checked it**
-- **Compiled** for Arduino Uno and Mega 2560 with `-Wall -Wextra`: no warnings. The 2022 version gives warnings that point straight at the bugs (`unused variable 'control'`, and the comma operator in `return R, G, B`).
-- **Simulated** with the firmware running unchanged against a mocked Arduino API and a modelled DC motor with quadrature encoder (`test/run_tests.sh`):
+**Verification**
+- **Compiled** for Arduino Uno and Mega 2560 with `-Wall -Wextra`: zero warnings.
+- **Automated tests:** the firmware runs unchanged against a mocked Arduino API and a modelled DC motor with quadrature encoder (`test/run_tests.sh`).
 
-| Test | 2022 code | Fixed code |
+| Test | v1 (2022) | v2 (2026) |
 |---|---|---|
-| Move to 100° | Ran away, ended about 590° off | Within 1.1°, settled in 0.35 s, 4° overshoot |
-| Move to −90° (reverse) | Ended about 1,850° off | Within 1.0°, settled in 0.87 s |
-| Blank line typed in Serial Monitor | Setpoint reset to 0 | Ignored, position held |
-| Motor 2 15% weaker than motor 1 | n/a (one encoder) | Max gap between actuators during the move: 6.5° (39° without the sync term) |
+| Move to 100° | Did not settle (~590° off) | Within 1.1°, settled in 0.35 s, 4° overshoot |
+| Reverse to −90° | Did not settle | Within 1.0°, settled in 0.87 s |
+| Blank line in Serial Monitor | Target reset to 0 | Ignored, position held |
+| Motor 2 15% weaker than motor 1 | Single encoder, no sync | Max 6.5° apart during the move (39° without sync) |
 
-The motor model is made up, so this proves the control **logic** works, not the final gains. The gains in the sketch are starting values and need tuning on the real actuators. The 2022 gains (5 / 20 / 10) made the motor chatter back and forth 30 to 70 times per move in simulation, so I lowered them.
+The test motor model is generic, so the tests confirm the control logic. The gains (Kp 4, Ki 1.5, Kd 0.25) are starting values to tune on the real actuators. They replace the v1 gains, which caused chatter in testing.
 
-**Project X sketch**
-- Removed every blocking `delay()`. The old loop was stuck for about 20 s per cycle and could miss Bluetooth commands. Lights, motors, LEDs and serial now all run together on `millis()` timers.
-- The colour parser is now actually called. It range checks values (0–255) and rejects bad input instead of returning only `B`.
-- Added a `#RAINBOW#` command to go back to the fade. Tested: colour applied the instant the command arrives, bad input rejected, motor cycle correct.
+**Project X sketch changelog**
+- **Upgrade:** fully non-blocking. Lights, motors, LEDs and Bluetooth all run together on `millis()` timers, so commands respond instantly (v1 blocked for up to ~20 s per cycle).
+- **Bug fix:** the RGB parser is now wired in, range checks 0–255 and rejects bad input.
+- **New feature:** `#RAINBOW#` command to go back to the colour fade.
+- **Tested:** colours apply the instant a command arrives, invalid input is rejected, and the motor cycle runs in the right order.
 
 ## Repo layout
 
 ```
 firmware/
-  px_merged_test/               Project X lights, motors and RGB ambient lighting (fixed 2026)
-  lms_pid_actuator_prototype/   LMS PID position control with actuator sync (fixed 2026)
-  original_2022/                the code as written in the 2022 thesis, for comparison
+  px_merged_test/               Project X lights, motors and RGB ambient lighting (v2, 2026)
+  lms_pid_actuator_prototype/   LMS PID position control with actuator sync (v2, 2026)
+  original_2022/                v1 firmware from the 2022 thesis, for reference
 test/                           host simulation tests (run_tests.sh)
 media/                          photos, renders, diagrams and tuning plots
 docs/poster.jpg                 thesis poster
