@@ -1,5 +1,5 @@
 // Lexus Mobile Showroom (LMS) - PID position control prototype
-// Autostarke R&D. v1 2022, v2 2026.
+// Autostarke R&D.
 //
 // Bench prototype for closed loop control of the side wall actuators.
 // Two encoder motors (M1, M2) stand in for the linear actuators.
@@ -12,16 +12,16 @@
 //
 // Board: Arduino Uno or Mega 2560.
 //
-// v2 changelog (2026), see README:
-//  - Bug fix: PID output drives the motors as a signed -255..255 PWM command
-//  - Upgrade: quadrature encoder (A + B channels) counted in the interrupt
-//  - Bug fix: non-blocking serial line input, empty lines ignored
-//  - Bug fix: deadband checked first so the motor stops cleanly
-//  - Upgrade: fixed 20 ms control loop using millis()
-//  - Upgrade: anti-windup on the integral
-//  - Bug fix: pin map (encoders on interrupt pins, motors on PWM pins, Serial pins free)
-//  - Upgrade: position not wrapped at 360
-//  - New: sync term keeps the two actuators level while moving
+// Design:
+//  - PID output drives the motors as a signed -255..255 PWM command
+//  - Quadrature encoder (A + B channels) counted in the interrupt
+//  - Non-blocking serial line input, empty lines ignored
+//  - Deadband checked first so the motor stops cleanly at the target
+//  - Fixed 20 ms control loop using millis(), real dt in the maths
+//  - Anti-windup on the integral
+//  - Encoders on interrupt pins, motors on PWM pins, Serial pins left free
+//  - Position is not wrapped at 360
+//  - Sync term keeps the two actuators level while moving
 //
 // Gains: Kp/Ki/Kd below are starting values. Tune them on the real actuators.
 

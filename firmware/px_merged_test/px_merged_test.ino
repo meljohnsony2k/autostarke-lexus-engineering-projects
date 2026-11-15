@@ -1,5 +1,5 @@
 // Project X (PX) merged test sketch
-// Luxury lounge conversion kit prototype, Autostarke R&D. v1 2022, v2 2026.
+// Luxury lounge conversion kit prototype, Autostarke R&D.
 //
 // Combines the individually tested PX functions into one program:
 //  - reading, flood and ambient lights through relays
@@ -12,10 +12,9 @@
 //
 // Board: Arduino Mega 2560 (also runs on Uno).
 //
-// v2 changelog (2026), see README:
-//  - Upgrade: fully non-blocking (millis() timers), so commands respond instantly
-//  - Bug fix: RGB parser wired in, returns true/false, range checks 0-255
-//  - New: #RAINBOW# command
+// Design:
+//  - Fully non-blocking (millis() timers), so commands respond instantly
+//  - RGB parser range checks 0-255 and rejects bad input
 
 #include <Adafruit_NeoPixel.h>
 

@@ -96,7 +96,7 @@ I prototyped it with two encoder motors standing in for the actuators, and **tun
 |---|---|---|
 | <img src="media/lms/pid_initial_kp10_ki5_kd5.png" width="250"/> | <img src="media/lms/pid_tuned_kp5_ki20_kd10.png" width="250"/> | <img src="media/lms/pid_setpoint_245.png" width="250"/> |
 
-In 2026 I released a **v2 of the controller** with bug fixes, quadrature encoder feedback and actuator sync, verified in simulation (see [Firmware v2](#firmware-v2-2026-bug-fixes-and-upgrades) below). Code: [`firmware/lms_pid_actuator_prototype`](firmware/lms_pid_actuator_prototype/lms_pid_actuator_prototype.ino)
+The controller firmware uses quadrature encoder feedback, a PID loop per actuator and a sync term that keeps the wall level, verified in simulation (see [Controller firmware](#controller-firmware) below). Code: [`firmware/lms_pid_actuator_prototype`](firmware/lms_pid_actuator_prototype/lms_pid_actuator_prototype.ino)
 
 | PID loop logic | Actuator wiring | Power flow |
 |---|---|---|
@@ -108,49 +108,46 @@ Fabrication delays meant the full LMS wasn't finished by the thesis deadline, so
 
 Automotive wiring and harness work · ECU diagnostics (Toyota Techstream, OBD-II) · Arduino and embedded C · PID control and tuning · Fusion 360 CAD, rendering and stress simulation · material and corrosion selection · power system load planning · project scheduling, vendor and procurement management · testing, commissioning and quality checks
 
-## Firmware v2 (2026): bug fixes and upgrades
+## Controller firmware
 
-I revisited the prototype firmware and released v2, with bug fixes, new features and automated tests. v1 (2022) is kept in [`firmware/original_2022/`](firmware/original_2022) for reference.
+**LMS PID actuator controller** ([`firmware/lms_pid_actuator_prototype`](firmware/lms_pid_actuator_prototype/lms_pid_actuator_prototype.ino))
 
-**LMS PID controller changelog**
-
-| Area | v2 change | Benefit |
+| Area | Design | Benefit |
 |---|---|---|
-| PID output | Bug fix: the PID result now drives the motors, as a signed −255…255 PWM command | Proportional speed and direction control instead of full speed on/off |
-| Encoder feedback | Upgrade: every pulse counted in the interrupt, with quadrature (channel A + B) direction sensing | Accurate position, even when the motor coasts or reverses |
-| Serial input | Bug fix: non-blocking line reader that ignores empty lines | A stray Enter no longer changes the target |
-| Stop zone | Bug fix: deadband checked first | Motor stops cleanly at the target |
-| Timing | Upgrade: fixed 20 ms (50 Hz) control loop on `millis()`, with the real dt in the maths | Consistent integral and derivative behaviour |
-| Integral | Upgrade: anti-windup (integrate only while not saturated) | Less overshoot after long moves |
-| Pin map | Bug fix: encoders on interrupt pins 2/3 (channel B on 4/7), motors on PWM pins 5/6 and 10/11 | No clash with Serial; speed control on both motors |
-| Actuator sync | New feature: separate PID per actuator plus a sync term that slows whichever is ahead | Keeps the showroom wall level while it extends |
+| PID output | Signed −255…255 PWM command per motor | Proportional speed and direction control |
+| Encoder feedback | Every pulse counted in the interrupt, with quadrature (channel A + B) direction sensing | Accurate position, even when the motor coasts or reverses |
+| Serial input | Non-blocking line reader that ignores empty lines | A stray Enter never changes the target |
+| Stop zone | Deadband checked first | Motor stops cleanly at the target |
+| Timing | Fixed 20 ms (50 Hz) control loop on `millis()`, with the real dt in the maths | Consistent integral and derivative behaviour |
+| Integral | Anti-windup (integrate only while not saturated) | Less overshoot after long moves |
+| Pin map | Encoders on interrupt pins 2/3 (channel B on 4/7), motors on PWM pins 5/6 and 10/11 | No clash with Serial; speed control on both motors |
+| Actuator sync | Separate PID per actuator plus a sync term that slows whichever is ahead | Keeps the showroom wall level while it extends |
 
 **Verification**
 - **Compiled** for Arduino Uno and Mega 2560 with `-Wall -Wextra`: zero warnings.
 - **Automated tests:** the firmware runs unchanged against a mocked Arduino API and a modelled DC motor with quadrature encoder (`test/run_tests.sh`).
 
-| Test | v1 (2022) | v2 (2026) |
-|---|---|---|
-| Move to 100° | Did not settle (~590° off) | Within 1.1°, settled in 0.35 s, 4° overshoot |
-| Reverse to −90° | Did not settle | Within 1.0°, settled in 0.87 s |
-| Blank line in Serial Monitor | Target reset to 0 | Ignored, position held |
-| Motor 2 15% weaker than motor 1 | Single encoder, no sync | Max 6.5° apart during the move (39° without sync) |
+| Test | Result |
+|---|---|
+| Move to 100° | Within 1.1°, settled in 0.35 s, 4° overshoot |
+| Reverse to −90° | Within 1.0°, settled in 0.87 s |
+| Blank line in Serial Monitor | Ignored, position held |
+| Motor 2 15% weaker than motor 1 | Max 6.5° apart during the move (39° without sync) |
 
-The test motor model is generic, so the tests confirm the control logic. The gains (Kp 4, Ki 1.5, Kd 0.25) are starting values to tune on the real actuators. They replace the v1 gains, which caused chatter in testing.
+The test motor model is generic, so the tests confirm the control logic. The gains (Kp 4, Ki 1.5, Kd 0.25) are starting values to tune on the real actuators.
 
-**Project X sketch changelog**
-- **Upgrade:** fully non-blocking. Lights, motors, LEDs and Bluetooth all run together on `millis()` timers, so commands respond instantly (v1 blocked for up to ~20 s per cycle).
-- **Bug fix:** the RGB parser is now wired in, range checks 0–255 and rejects bad input.
-- **New feature:** `#RAINBOW#` command to go back to the colour fade.
+**Project X control sketch** ([`firmware/px_merged_test`](firmware/px_merged_test/px_merged_test.ino))
+- Fully non-blocking. Lights, motors, LEDs and Bluetooth all run together on `millis()` timers, so commands respond instantly.
+- RGB commands are range checked (0–255) and bad input is rejected.
+- `#R,G,B#` sets a custom ambient colour and `#RAINBOW#` goes back to the colour fade.
 - **Tested:** colours apply the instant a command arrives, invalid input is rejected, and the motor cycle runs in the right order.
 
 ## Repo layout
 
 ```
 firmware/
-  px_merged_test/               Project X lights, motors and RGB ambient lighting (v2, 2026)
-  lms_pid_actuator_prototype/   LMS PID position control with actuator sync (v2, 2026)
-  original_2022/                v1 firmware from the 2022 thesis, for reference
+  px_merged_test/               Project X lights, motors and RGB ambient lighting
+  lms_pid_actuator_prototype/   LMS PID position control with actuator sync
 test/                           host simulation tests (run_tests.sh)
 media/                          photos, renders, diagrams and tuning plots
 docs/poster.jpg                 thesis poster

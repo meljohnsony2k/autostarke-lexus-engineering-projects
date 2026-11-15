@@ -1,6 +1,6 @@
 #include "Arduino.h"
 unsigned long g_ms=0; int g_pwm[64]={0}; void (*g_isr[2])()={nullptr,nullptr}; MockSerial Serial;
-// Two motor channels. Map: original sketch uses pins (5,6) and (8,9); fixed uses (5,6) and (10,11).
+// Two motor channels on PWM pins (5,6) and (10,11).
 int MF[2],MR[2]; int ENCI[2]; // encoder interrupt per motor (-1 = none)
 double pos[2]={0,0}, vel[2]={0,0}, acc_count[2]={0,0};
 const double VMAX=600.0;   // deg/s at full PWM
