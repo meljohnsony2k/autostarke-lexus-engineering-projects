@@ -49,6 +49,16 @@ I prototyped the control system on Arduino: relay driven reading and flood light
 |---|---|
 | <img src="media/px/block_diagram.png" width="360"/> | <img src="media/px/merged_test_circuit.png" width="380"/> |
 
+Each subsystem was built and tested on its own first, then merged:
+
+| Auxiliary battery and DC-DC charger | Privacy screen and blinds motors (H-bridge) | Reading, flood and ambient lights |
+|---|---|---|
+| <img src="media/px/circuit_dcdc_charger.png" width="260"/> | <img src="media/px/circuit_motors.png" width="260"/> | <img src="media/px/circuit_lights.png" width="260"/> |
+
+I also designed the interface for the Android control app: one hexagon button per cabin function, and a colour picker that sends the `#R,G,B#` command to the ambient lighting.
+
+<img src="media/px/app_ui.jpg" width="100%"/>
+
 ## Phase II: ORK off road kit (Lexus LX570)
 
 A client used his LX570 on rough estate roads and kept damaging the underbody. He also couldn't easily reach the under chassis spare tyre. We designed, simulated, fabricated and installed:
@@ -85,6 +95,10 @@ A 40 ft container showroom on a flatbed trailer pulled by a Bharat Benz 4023T, u
 | Concept render | Extended floor plan | Container under construction |
 |---|---|---|
 | <img src="media/lms/render_night.jpg" width="250"/> | <img src="media/lms/floorplan_extended.png" width="250"/> | <img src="media/lms/container_build.jpg" width="200"/> |
+
+Walkthrough of the concept model, from the trailer outside to the car on display inside:
+
+<img src="media/lms/walkthrough.gif" width="480"/>
 
 ### Closed loop actuator control (my main task)
 
